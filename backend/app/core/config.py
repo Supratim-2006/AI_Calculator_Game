@@ -5,13 +5,13 @@ CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")  # development | test | live
 QUESTION_LOG = os.environ.get("QUESTION_LOG", "data/questions.jsonl")
 DEFAULTS = {
-    "sequence": [1, 1, 2, 2, 3, 3, 4, 4, 5, 5],
-    "time": {1: 30, 2: 25, 3: 20, 4: 15, 5: 10},
-    "base": {1: 100, 2: 150, 3: 250, 4: 400, 5: 600},
-    "sol": {1: [10, 999], 2: [5, 20], 3: [2, 8], 4: [1, 5], 5: [1, 3]},
-    "minTarget": 3, "maxTarget": 200, "penalty": 25, "speed": 2,
-    "attempts": 3, "countdown": 3, "resultDelay": 4, "minConf": 0.85,
+    "sequence": [1] * 6 + [2] * 6 + [3] * 8,             # 20 questions: 6 easy, 6 medium, 8 hard
+    "time": {1: 40, 2: 60, 3: 80},                       # seconds: easy 40, medium 60, hard 80
+    "base": {1: 100, 2: 100, 3: 100},                    # constant points per question
+    "sol": {1: [10, 999], 2: [2, 30], 3: [1, 8]},        # allowed number of valid (X,Y,Z) solutions per level
+    "minTarget": 3, "maxTarget": 200, "penalty": 0, "speed": 2,   # no negative marking; bonus = seconds left x speed
+    "countdown": 3, "minConf": 0.75, "lockSeconds": 1.0,
 }
 cfg = copy.deepcopy(DEFAULTS)
 if ENVIRONMENT == "development":  # accelerated timers for developers
-    cfg["countdown"], cfg["resultDelay"] = 1, 2
+    cfg["countdown"] = 1

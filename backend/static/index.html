@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en"><head><meta http-equiv="Cache-Control" content="no-store"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AI Calculator Arena</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -26,57 +26,84 @@ button.go{background:var(--acc);color:#04120f;font-weight:700;border:0}button:di
 .banner{text-align:center;padding:10px;border-radius:10px;margin:10px 0}
 .banner.ok{background:rgba(91,226,138,.12);color:var(--ok)}.banner.bad{background:rgba(255,107,122,.12);color:var(--bad)}
 .cam{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3}
-.cam video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.cam video,.cam canvas{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}.cam canvas{position:absolute;inset:0;pointer-events:none}
 .bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .1s}
 table{width:100%;border-collapse:collapse}td,th{padding:8px;text-align:left;border-bottom:1px solid var(--line)}
 .hide{display:none!important}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+.tabs{display:flex;gap:8px;margin:10px 0}.tabs button{flex:1;padding:10px}.tabs button.sel{border-color:var(--acc);background:rgba(110,231,216,.15)}
+label{display:block;margin-top:4px;font-size:14px;color:var(--mut)}
+.pause{background:rgba(255,193,94,.14);border:1px solid var(--warn);color:var(--warn);border-radius:12px;padding:12px;text-align:center;font-weight:700;margin-bottom:12px}
+.codechip{display:inline-block;font:700 22px 'JetBrains Mono',monospace;letter-spacing:.15em;padding:6px 14px;border:1px dashed var(--acc);border-radius:10px;color:var(--acc);margin:6px 0}
+#timer.paused{color:var(--warn)}
+.hero{text-align:center;padding:32px 16px;margin-bottom:12px}.hero h2{font-size:clamp(24px,5vw,38px);margin:0 0 6px}
+button.big{font-size:clamp(22px,5vw,32px);padding:16px 48px;border-radius:999px;margin-top:14px;letter-spacing:.08em;box-shadow:0 0 30px rgba(110,231,216,.35)}
+.rolebtns{display:flex;gap:10px;justify-content:center;margin-top:10px}.rolebtns button{flex:0 0 auto;min-width:96px}.rolebtns button.sel{border-color:var(--acc);background:rgba(110,231,216,.15)}
+.toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:50;padding:10px 22px;border-radius:999px;font-weight:700;pointer-events:none;animation:pop 2.4s ease forwards;max-width:90vw;text-align:center}
+.toast.ok{background:#12351f;color:var(--ok);border:1px solid var(--ok)}.toast.bad{background:#3a1820;color:var(--bad);border:1px solid var(--bad)}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,-12px)}10%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0}}
+details.help{font-size:13px;margin-top:6px}details.help summary{cursor:pointer;color:var(--acc)}
+/* laptop / desktop: camera pinned to the top-right corner. Phones keep the original in-flow layout. */
+@media(min-width:900px){
+  body.ingame .wrap{max-width:1300px;padding-right:312px}
+  body.ingame #camPanel{position:fixed;top:16px;right:16px;width:280px;z-index:30;padding:10px;background:rgba(10,16,30,.92)}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation-duration:.01s!important}}
 </style></head><body><div class="wrap">
 
 <!-- LOGIN -->
-<section id="login" class="glass" style="max-width:420px;margin:12vh auto 0">
+<section id="login" class="glass" style="max-width:440px;margin:6vh auto 0">
   <h1>AI Calculator Arena</h1><p class="mut">Three players, three cameras, one equation.</p>
-  <label>Team code<input id="code" autocapitalize="characters" maxlength="8"></label>
-  <label>Your name<input id="pname" maxlength="20"></label>
-  <button class="go" id="joinBtn" style="width:100%;margin-top:8px">Join team</button>
+  <div class="tabs"><button id="tabNew" class="sel">Create team (leader)</button><button id="tabJoin">Join / log in</button></div>
+  <label id="tnWrap">Team name<input id="teamIn" maxlength="30" autocomplete="off"></label>
+  <label id="codeWrap" class="hide">Team ID (from your leader)<input id="code" autocapitalize="characters" maxlength="8" autocomplete="off"></label>
+  <label>Your name<input id="pname" maxlength="20" autocomplete="off"></label>
+  <label>Roll number<input id="roll" maxlength="30" autocomplete="off"></label>
+  <label>Phone number<input id="phone" type="tel" inputmode="tel" maxlength="20" autocomplete="off"></label>
+  <button class="go" id="joinBtn" style="width:100%;margin-top:8px">Create team</button>
   <p id="err" class="mut"></p>
+  <p class="mut" style="font-size:13px">The leader creates the team and gets a Team ID to share. Teammates join with that ID. Only the leader can start the game, and only when all 3 players are online.</p>
 </section>
 
 <!-- GAME -->
 <section id="game" class="hide">
-  <header><div><h1 id="tname"></h1><span class="mut" id="phaseTxt"></span></div><div class="mono" style="font-size:22px">Score <span id="score">0</span></div></header>
-  <div class="glass">
-    <div class="mut" id="meta" style="text-align:center"></div>
-    <div id="eq">…</div>
-    <div id="timer">–</div>
+  <header><div><h1 id="tname"></h1><span class="mut" id="phaseTxt"></span> <span class="mono mut" id="tcode"></span></div><div style="text-align:right"><div class="mono" style="font-size:22px">Score <span id="score">0</span></div><button id="logoutBtn" style="padding:4px 12px;font-size:13px;margin-top:4px">Log out</button></div></header>
+  <div id="pauseBar" class="pause hide"></div>
+  <!-- START SCREEN: shown until the leader presses START -->
+  <div id="startCard" class="glass hero hide">
+    <h2 id="startTitle">Ready to play?</h2>
+    <p class="mut" id="startSub"></p>
+    <div id="roleBox" class="hide"><p><b>Choose your variable</b> <span class="mut">(picking a taken letter swaps with that teammate; roles lock for the whole game)</span></p>
+      <div class="rolebtns"><button data-r="X">I am X</button><button data-r="Y">I am Y</button><button data-r="Z">I am Z</button></div></div>
+    <button class="go big hide" id="startBtn">▶ START</button>
   </div>
-  <div class="row" id="slots" style="margin:12px 0"></div>
-  <div id="banner"></div>
-  <div class="row">
+  <div id="arena" class="hide">
     <div class="glass">
-      <div id="assign" class="hide"><p><b>Choose your variable.</b> Picking a taken letter swaps with that teammate. Roles lock when the countdown starts.</p>
-        <div class="row"><button data-r="X">I am X</button><button data-r="Y">I am Y</button><button data-r="Z">I am Z</button></div>
-        <button class="go" id="startBtn" style="width:100%;margin-top:10px">Lock roles and start</button></div>
+      <div class="mut" id="meta" style="text-align:center"></div>
+      <div id="eq">…</div>
+      <div id="timer">–</div>
+    </div>
+    <div class="row" id="slots" style="margin:12px 0"></div>
+  </div>
+  <div class="row">
+    <div class="glass" id="leftPanel">
       <div id="play" class="hide"><p id="readout" class="mono" style="font-size:20px"></p>
-        <button class="go" id="submitBtn" style="width:100%">Submit answer</button></div>
-      <div id="done" class="hide"></div>
+        <p id="lockHint" class="mut" style="margin:0"></p></div>
       <table id="log" class="mono" style="margin-top:10px"></table>
     </div>
-    <div class="glass"><div class="cam"><video id="cam" playsinline muted></video></div>
+    <div class="glass" id="camPanel"><div class="cam"><video id="cam" playsinline muted></video><canvas id="ov"></canvas></div>
       <div class="row" style="margin-top:8px"><div>Detected <b class="mono" id="det" style="font-size:28px">–</b></div><div class="mut" id="stab" style="text-align:right">Camera off</div></div>
-      <div class="bar"><i id="bar"></i></div>
-      <p class="mut" style="font-size:13px">Fist 0 · fingers 1–5 · two hands add up (5+2 = 7). Video stays on this device; only the digit is sent.</p></div>
+      <div class="bar"><i id="bar"></i></div><button id="calBtn" style="width:100%;margin-top:8px">Calibrate my hand (8 s)</button>
+      <details class="help"><summary>How to show digits</summary><p class="mut" style="font-size:13px;margin:6px 0 0"><b>0</b> = fist · <b>1–5</b> = fingers on one hand · <b>6–9</b> = open hand (5) plus 1–4 fingers on the other hand. Palms toward the camera, both hands fully in view. Video stays on this device; only the digit is sent.</p></details></div>
   </div>
 </section>
 
 <!-- ADMIN -->
 <section id="admin" class="hide">
   <header><h1>Live event</h1><span id="astats" class="mut mono"></span></header>
-  <div id="alogin" class="glass" style="max-width:360px"><input id="apass" type="password" placeholder="Admin password"><button class="go" id="alog">Sign in</button></div>
+  <div id="alogin" class="glass" style="max-width:360px"><input id="apass" type="password" autocomplete="new-password" placeholder="Admin password"><button class="go" id="alog">Sign in</button></div>
   <div id="adash" class="hide">
-    <div class="glass"><table id="board"></table></div>
+    <div class="glass"><input id="asearch" placeholder="Search by team name, team ID, player name, roll number or phone…" autocomplete="off"><table id="board"></table></div>
     <div class="row" style="margin-top:12px">
-      <div class="glass"><b>Create teams</b> (one name per line)<textarea id="tnames" rows="4"></textarea><button id="mk">Create</button><pre id="made" class="mono"></pre></div>
       <div class="glass"><b>Settings</b> (JSON)<textarea id="cfgTxt" rows="10" class="mono"></textarea><button id="saveCfg">Save settings</button></div>
     </div>
   </div>
@@ -85,73 +112,142 @@ table{width:100%;border-collapse:collapse}td,th{padding:8px;text-align:left;bord
 
 <script type="module">
 const $ = s => document.querySelector(s), api = (u, o = {}) => fetch(u, o).then(r => r.ok ? (r.status === 204 ? null : r.json()) : r.json().catch(() => ({ error: r.status })).then(e => Promise.reject(e)));
-let S = null, ws = null, tok = localStorage.tok, rem0 = 0, t0 = 0, sent = null, running = false;
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let mode = 'new', S = null, ws = null, tok = null, rem0 = 0, t0 = 0, sent = null, running = false;
 
 // ================= PLAYER =================
-if (location.hash === '#admin') initAdmin(); else { if (tok) connect(); else show('login'); }
-function show(id) { for (const s of ['login', 'game', 'admin']) $('#' + s).classList.toggle('hide', s !== id); }
+// No saved sessions: nothing is kept in the browser, so a refresh, closed tab or logout always returns to the login screen.
+try { localStorage.removeItem('tok'); localStorage.removeItem('adm'); sessionStorage.clear(); } catch { }
+addEventListener('pageshow', e => { if (e.persisted) location.reload(); });   // back/forward cache must not resurrect an old screen
+const logout = () => { tok = null; if (ws) { ws.onclose = null; ws.close(); } location.reload(); };
+if (location.hash === '#admin') initAdmin(); else show('login');
+function show(id) { document.body.classList.toggle('ingame', id === 'game'); for (const s of ['login', 'game', 'admin']) $('#' + s).classList.toggle('hide', s !== id); }
+const setMode = m => { mode = m; $('#tabNew').classList.toggle('sel', m === 'new'); $('#tabJoin').classList.toggle('sel', m === 'join'); $('#tnWrap').classList.toggle('hide', m !== 'new'); $('#codeWrap').classList.toggle('hide', m !== 'join'); $('#joinBtn').textContent = m === 'new' ? 'Create team' : 'Join team'; $('#err').textContent = ''; };
+$('#logoutBtn').onclick = () => { if (confirm('Log out? Your team will be paused until you log in again with your Team ID and details.')) logout(); };
+$('#tabNew').onclick = () => setMode('new'); $('#tabJoin').onclick = () => setMode('join');
 $('#joinBtn').onclick = async () => {
-  try { const r = await api('/api/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: $('#code').value, name: $('#pname').value }) }); tok = localStorage.tok = r.token; connect(); }
-  catch (e) { $('#err').textContent = e.error || 'Could not join'; }
+  const f = { name: $('#pname').value, roll: $('#roll').value, phone: $('#phone').value };
+  if (!f.name.trim() || !f.roll.trim() || !f.phone.trim() || (mode === 'new' ? !$('#teamIn').value.trim() : !$('#code').value.trim())) { $('#err').textContent = 'Please fill in every field'; return; }
+  try { const r = await api(mode === 'new' ? '/api/register' : '/api/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mode === 'new' ? { ...f, team_name: $('#teamIn').value } : { ...f, code: $('#code').value }) }); tok = r.token; connect(); }
+  catch (e) { $('#err').textContent = e.error || (e.detail ? 'Please check your details (phone must be 7 to 15 digits)' : 'Could not join'); }
 };
 function connect() {
   show('game'); ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?token=' + tok);
   ws.onmessage = e => { S = JSON.parse(e.data); rem0 = S.remaining; t0 = Date.now(); render(); };
-  ws.onclose = ev => { if (ev.code === 4401) { delete localStorage.tok; location.reload(); } else setTimeout(connect, 1500); };
+  ws.onclose = ev => { if (ev.code === 4401) { tok = null; location.reload(); } else setTimeout(connect, 1500); };
   startCamera();
 }
 const send = m => ws && ws.readyState === 1 && ws.send(JSON.stringify(m));
 document.querySelectorAll('[data-r]').forEach(b => b.onclick = () => send({ type: 'role', role: b.dataset.r }));
 $('#startBtn').onclick = () => send({ type: 'start' });
-$('#submitBtn').onclick = () => send({ type: 'submit' });
 
-const LV = ['', 'Easy', 'Medium', 'Hard', 'Extreme', 'Final boss'];
+const LV = ['', 'Easy', 'Medium', 'Hard'];
+let toastN = -1;
+function toast(html, cls) { const t = document.createElement('div'); t.className = 'toast ' + cls; t.innerHTML = html; document.body.appendChild(t); setTimeout(() => t.remove(), 2500); }
 function render() {
-  const s = S, q = s.question; $('#tname').textContent = s.team; $('#score').textContent = s.score;
-  $('#phaseTxt').textContent = { LOBBY: `Waiting for players (${s.players.length}/3)`, ASSIGN: 'Assign roles', COUNTDOWN: 'Get ready', PLAYING: 'Show your digit', RESULT: 'Result', FINISHED: 'Event finished' }[s.phase];
-  $('#eq').textContent = q ? `${q.expression} = ${q.target}` : (s.phase === 'FINISHED' ? 'All questions done' : '…');
-  $('#meta').textContent = q ? `${LV[q.difficulty]} · ${q.time_limit}s${q.constraint ? ' · ' + q.constraint : ''}` : '';
+  const s = S, q = s.question, ph = s.phase, mine = s.you.role, lead = s.you.leader, leader = s.players.find(p => p.leader);
+  const off = s.players.filter(p => !p.online).map(p => p.name), allOn = s.players.length === 3 && off.length === 0;
+  $('#tname').textContent = s.team; $('#tcode').textContent = 'Team ID: ' + s.code; $('#score').textContent = s.score;
+  $('#phaseTxt').textContent = { LOBBY: `Waiting for players (${s.players.length}/3)`, ASSIGN: 'Ready to start', COUNTDOWN: 'Get ready', PLAYING: s.paused ? 'Paused' : 'Show your digit', RESULT: '', FINISHED: 'Event finished' }[ph];
+  // pause bar: someone is offline while the game is running, the timer is frozen
+  const pb = $('#pauseBar'); pb.classList.toggle('hide', !s.paused); if (s.paused) pb.textContent = `⏸ Game paused: waiting for ${off.join(', ') || 'a teammate'} to come back online. The timer is stopped.`;
+  // start screen (lobby / assign / countdown)
+  const pre = ['LOBBY', 'ASSIGN', 'COUNTDOWN'].includes(ph);
+  $('#startCard').classList.toggle('hide', !pre); $('#arena').classList.toggle('hide', pre); $('#play').classList.toggle('hide', ph !== 'PLAYING');
+  $('#roleBox').classList.toggle('hide', ph !== 'ASSIGN'); $('#startBtn').classList.toggle('hide', ph !== 'ASSIGN' || !lead); $('#startBtn').disabled = !allOn;
+  document.querySelectorAll('[data-r]').forEach(b => b.classList.toggle('sel', b.dataset.r === mine));
+  $('#startTitle').textContent = ph === 'LOBBY' ? 'Waiting for your team' : ph === 'COUNTDOWN' ? 'Get ready…' : lead ? 'Ready to play?' : 'Waiting for the leader';
+  $('#startSub').innerHTML = ph === 'LOBBY' ? `Share this Team ID with your teammates:<br><span class="codechip">${esc(s.code)}</span><br>${s.players.length}/3 players have joined.`
+    : ph === 'ASSIGN' ? `You are ${mine || '?'}. Allow the camera and pick your letter. ` + (!allOn ? `<b>Waiting for ${esc(off.join(', '))} to come online…</b>` : lead ? 'Everyone is online. Press START when ready.' : `Waiting for the team leader (${esc(leader ? leader.name : '?')}) to press START.`)
+    : `Starting in ${Math.max(0, Math.ceil(rem0 - (Date.now() - t0) / 1000))}…`;
+  $('#eq').textContent = q ? `${q.expression} = ${q.target}` : (ph === 'FINISHED' ? `All done! Final score ${s.score}` : '…');
+  $('#meta').textContent = q ? `Question ${s.n}/${s.total} · ${LV[q.difficulty]} · ${q.time_limit}s${q.constraint ? ' · ' + q.constraint : ''}` : '';
   $('#slots').innerHTML = ['X', 'Y', 'Z'].map(L => { const p = s.players.find(p => p.role === L), v = s.values[L];
-    return `<div class="glass slot ${v !== undefined ? 'ready' : ''} ${p && p.id === s.you.id ? 'me' : ''}"><span class="letter">${L}</span><b>${v ?? '–'}</b><span>${p ? p.name : '—'}${p && !p.online ? ' (offline)' : ''}</span></div>`; }).join('');
-  $('#assign').classList.toggle('hide', s.phase !== 'ASSIGN'); $('#play').classList.toggle('hide', s.phase !== 'PLAYING');
-  const v = s.values, full = ['X', 'Y', 'Z'].every(k => v[k] !== undefined);
-  $('#readout').textContent = `X=${v.X ?? '?'}  Y=${v.Y ?? '?'}  Z=${v.Z ?? '?'}`; $('#submitBtn').disabled = !full;
-  const r = s.res; let b = '';
-  if (r && r.ok) b = `<div class="banner ok">Correct! +${r.pts} points (speed bonus ${r.bonus}). Next question starting…</div>`;
-  else if (r && r.timeUp) b = `<div class="banner bad">Time up. Next question starting…</div>`;
-  else if (r) b = `<div class="banner bad">Incorrect: X=${r.X} Y=${r.Y} Z=${r.Z} gives ${r.got}${r.constraintFailed ? ' (constraint not met)' : ''}, required ${r.required}. Attempt ${s.attempts}${s.max_attempts ? '/' + s.max_attempts : ''}.</div>`;
-  $('#banner').innerHTML = b;
-  $('#log').innerHTML = s.log.map(l => `<tr><td>Question ${l.n}</td><td style="text-align:right;color:var(--${l.pts >= 0 && l.ok ? 'ok' : 'bad'})">${l.pts >= 0 ? '+' : ''}${l.pts}</td></tr>`).join('') + (s.log.length ? `<tr><th>Total</th><th style="text-align:right">${s.score}</th></tr>` : '');
-  sent = null; tickTimer();
+    return `<div class="glass slot ${v !== undefined ? 'ready' : ''} ${p && p.id === s.you.id ? 'me' : ''}"><span class="letter">${L}</span><b>${v ?? '–'}</b><span>${p ? esc(p.name) : '—'}${p && !p.online ? ' (offline)' : ''}</span></div>`; }).join('');
+  const v = s.values;
+  $('#readout').textContent = `X=${v.X ?? '?'}  Y=${v.Y ?? '?'}  Z=${v.Z ?? '?'}`;
+  $('#lockHint').textContent = s.locking ? 'All three digits detected… checking. Not right? Just change a digit and keep trying until the timer ends.' : 'Each player shows a digit 0–9.';
+  // a short non-blocking toast about the question that just ended; the next question is already running
+  if (s.last && s.n !== toastN) { toastN = s.n; toast(s.last.ok ? `✓ Correct! +${s.last.pts} (speed bonus ${s.last.bonus})` : '⏱ Time up, next question', s.last.ok ? 'ok' : 'bad'); }
+  $('#log').innerHTML = s.log.map(l => `<tr><td>Question ${l.n}</td><td style="text-align:right;color:var(--${l.ok ? 'ok' : 'bad'})">${l.pts >= 0 ? '+' : ''}${l.pts}</td></tr>`).join('') + (s.log.length ? `<tr><th>Total</th><th style="text-align:right">${s.score}</th></tr>` : '');
+  tickTimer();
 }
 function tickTimer() {
-  if (!S) return; const live = ['COUNTDOWN', 'PLAYING', 'RESULT'].includes(S.phase);
-  const left = live ? Math.max(0, Math.ceil(rem0 - (Date.now() - t0) / 1000)) : null; // display only; the server owns the clock
-  $('#timer').textContent = left === null ? '–' : (S.phase === 'PLAYING' && left === 0 ? 'TIME UP' : left); $('#timer').classList.toggle('low', S.phase === 'PLAYING' && left <= 5);
+  if (!S) return; const live = ['COUNTDOWN', 'PLAYING'].includes(S.phase);
+  const left = live ? (S.paused ? S.remaining : Math.max(0, Math.ceil(rem0 - (Date.now() - t0) / 1000))) : null; // display only; the server owns the clock (frozen while paused)
+  if (S.phase === 'COUNTDOWN') $('#startSub').textContent = S.paused ? 'Paused: waiting for everyone to be online…' : `Starting in ${left}…`;
+  $('#timer').textContent = left === null ? '–' : (S.paused ? '⏸ ' + left : S.phase === 'PLAYING' && left === 0 ? 'TIME UP' : left);
+  $('#timer').classList.toggle('low', S.phase === 'PLAYING' && !S.paused && left <= 5); $('#timer').classList.toggle('paused', !!S.paused);
 }
 setInterval(tickTimer, 200);
 
-// ================= COMPUTER VISION (on-device) =================
-const N_STABLE = 8, MIN_CONF = 0.85;
+// ================= COMPUTER VISION (on-device, up to TWO hands, digits 0–9) =================
+// 0 = fist | 1–5 = fingers on one hand | 6–9 = open hand (5) + 1–4 on the other hand. Digit = total extended fingers over both hands.
+const TUNE = { win: 10, need: 8, alpha: 0.6, margin: 0.01, minPalm: 0.05, lostFrames: 25 };
+const D = (a, b) => Math.hypot(a.x - b.x, a.y - b.y), TIPS = [4, 8, 12, 16, 20];
+// thumb: tip→pinkyMCP / thumbMCP→pinkyMCP ; other fingers: tip→wrist / MCP→wrist  (order: thumb, index, middle, ring, pinky)
+const feats = l => [D(l[4], l[17]) / D(l[2], l[17]), D(l[8], l[0]) / D(l[5], l[0]), D(l[12], l[0]) / D(l[9], l[0]), D(l[16], l[0]) / D(l[13], l[0]), D(l[20], l[0]) / D(l[17], l[0])];
+const DEF = { on: [1.05, 1.55, 1.55, 1.55, 1.42], off: [0.88, 1.38, 1.38, 1.38, 1.28] };
+let TH = (() => { try { return JSON.parse(localStorage.cal) || DEF; } catch { return DEF; } })();
+let H = {}, cal = null;   // H: per-hand smoothing + per-finger hysteresis state, keyed by left/right label
+$('#calBtn').onclick = () => { cal = { step: 'fist', t0: performance.now(), fist: [], open: [] }; };
+const med = a => a.slice().sort((x, y) => x - y)[a.length >> 1];
+function calStep(f, now) {   // 2 poses x 3 s with ONE hand: tight fist, then wide-open hand; thresholds are set between the two per finger
+  const el = (now - cal.t0) / 1000, k = cal.step;
+  if (f && el > 1) cal[k].push(f);
+  if (el >= 3) { if (k === 'fist') { cal.step = 'open'; cal.t0 = now; } else return finishCal(); }
+  return k === 'fist' ? 'Calibrating 1/2: make a tight FIST and hold…' : 'Calibrating 2/2: OPEN hand wide, fingers spread, thumb out…';
+}
+function finishCal() {
+  const on = [], off = []; let ok = cal.fist.length > 8 && cal.open.length > 8;
+  for (let i = 0; i < 5 && ok; i++) { const lo = med(cal.fist.map(f => f[i])), hi = med(cal.open.map(f => f[i])); if (hi - lo < 0.25) ok = false; on.push(lo + 0.6 * (hi - lo)); off.push(lo + 0.4 * (hi - lo)); }
+  cal = null; H = {};
+  if (!ok) return 'Calibration failed: keep the whole hand in view and try again';
+  TH = { on, off }; localStorage.cal = JSON.stringify(TH); return 'Calibrated ✓';
+}
+function draw(video, hands) {
+  const cv = $('#ov'), cx = cv.getContext('2d');
+  if (cv.width !== video.videoWidth) { cv.width = video.videoWidth; cv.height = video.videoHeight; }
+  cx.clearRect(0, 0, cv.width, cv.height);
+  hands.forEach(h => h.sm.forEach((p, i) => { const t = TIPS.indexOf(i); cx.beginPath(); cx.fillStyle = t < 0 ? 'rgba(255,255,255,.7)' : (h.up[t] ? '#5be28a' : '#ff6b7a'); cx.arc(p.x * cv.width, p.y * cv.height, t < 0 ? 3 : 8, 0, 6.3); cx.fill(); }));
+}
 async function startCamera() {
   if (running) return; running = true;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
-    const video = $('#cam'); video.srcObject = stream; await video.play();
+    const video = $('#cam'); video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 960 }, height: { ideal: 720 } } }); await video.play();
     const { HandLandmarker, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm');
-    const fs = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
-    const lm = await HandLandmarker.createFromOptions(fs, { baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task' }, runningMode: 'VIDEO', numHands: 2 });
-    let cand = null, n = 0, lastT = -1;
-    const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-    const count = l => { let c = 0; for (const [t, p] of [[8, 6], [12, 10], [16, 14], [20, 18]]) if (d(l[t], l[0]) > d(l[p], l[0]) * 1.05) c++; if (d(l[4], l[17]) > d(l[3], l[17]) * 1.15) c++; return c; };
+    const fset = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    const mk = delegate => HandLandmarker.createFromOptions(fset, { baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task', delegate }, runningMode: 'VIDEO', numHands: 2, minHandDetectionConfidence: 0.6, minHandPresenceConfidence: 0.6, minTrackingConfidence: 0.6 });
+    const lm = await mk('GPU').catch(() => mk('CPU'));
+    const win = [], confs = []; let lost = 0, lastSend = 0, lastT = -1;
     const loop = () => {
-      if (video.currentTime !== lastT) { lastT = video.currentTime;
-        const r = lm.detectForVideo(video, performance.now()); let digit = null, conf = 0;
-        if (r.landmarks.length) { digit = r.landmarks.reduce((s, l) => s + count(l), 0); conf = Math.min(...r.handednesses.map(h => h[0].score)); if (digit > 9) digit = null; }
-        if (digit !== null && conf >= MIN_CONF && digit === cand) n++; else { cand = digit !== null && conf >= MIN_CONF ? digit : null; n = cand === null ? 0 : 1; }
-        $('#det').textContent = digit ?? '–'; $('#bar').style.width = Math.min(100, n / N_STABLE * 100) + '%';
-        $('#stab').textContent = n >= N_STABLE ? `✓ stable (${Math.round(conf * 100)}%)` : (digit === null ? 'No hand' : 'Hold steady…');
-        if (n >= N_STABLE && S && S.phase === 'PLAYING' && S.you.role && sent !== cand) { sent = cand; send({ type: 'digit', digit: cand, conf }); }  // only digit + confidence leave the device
+      if (video.currentTime !== lastT) {
+        lastT = video.currentTime; const now = performance.now(), r = lm.detectForVideo(video, now), A = video.videoWidth / video.videoHeight;
+        let c = null, why = 'No hand', hs = 1, total = 0, ok = r.landmarks.length > 0, calF = null; const seen = new Set(), hands = [];
+        r.landmarks.forEach((raw, k) => {
+          let key = r.handednesses[k][0].categoryName; if (seen.has(key)) key += k; seen.add(key); hs = Math.min(hs, r.handednesses[k][0].score);
+          const h = H[key] || (H[key] = { sm: null, up: [false, false, false, false, false] });
+          h.sm = h.sm ? h.sm.map((p, i) => ({ x: p.x + TUNE.alpha * (raw[i].x - p.x), y: p.y + TUNE.alpha * (raw[i].y - p.y) })) : raw.map(p => ({ x: p.x, y: p.y })); hands.push(h);
+          const px = h.sm.map(p => ({ x: p.x * A, y: p.y }));   // true proportions before measuring distances
+          if (!raw.every(p => p.x > TUNE.margin && p.x < 1 - TUNE.margin && p.y > TUNE.margin && p.y < 1 - TUNE.margin)) { why = 'Move hands fully into view'; ok = false; }
+          else if (D(px[0], px[9]) < TUNE.minPalm) { why = 'Move hand closer'; ok = false; }
+          else { const f = feats(px); if (k === 0) calF = f; h.up = h.up.map((u, i) => f[i] > TH.on[i] ? true : f[i] < TH.off[i] ? false : u); total += h.up.filter(Boolean).length; }   // hysteresis stops flicker
+        });
+        for (const key of Object.keys(H)) if (!seen.has(key)) delete H[key];   // a hand that left the picture forgets its state
+        if (cal) $('#stab').textContent = calStep(calF, now);
+        else if (ok) { if (total <= 9) c = total; else why = 'Too many fingers (max 9)'; }
+        win.push(c); confs.push(c !== null ? hs : 0); if (win.length > TUNE.win) { win.shift(); confs.shift(); }
+        lost = c === null ? lost + 1 : 0;
+        const counts = new Array(10).fill(0); win.forEach(v => v !== null && counts[v]++);
+        const best = counts.indexOf(Math.max(...counts)), stable = !cal && counts[best] >= TUNE.need ? best : null;   // 8 of the last 10 frames
+        const conf = stable !== null ? confs.reduce((a, b) => a + b, 0) / win.length : 0;   // weakest hand score x share of valid frames
+        if (!cal) $('#stab').textContent = stable !== null ? `✓ stable ${stable}` : (c !== null ? 'Hold steady…' : why);
+        $('#det').textContent = stable ?? c ?? '–'; $('#bar').style.width = Math.min(100, counts[best] / TUNE.need * 100) + '%'; draw(video, hands);
+        const mine = S && S.you && S.values ? S.values[S.you.role] : undefined;
+        if (!cal && S && S.phase === 'PLAYING' && !S.paused && S.you.role && now - lastSend > 400) {   // only the digit (or "hands gone") leaves the device
+          if (stable !== null && stable !== mine) { lastSend = now; send({ type: 'digit', digit: stable, conf }); }
+          else if (stable === null && lost >= TUNE.lostFrames && mine !== undefined) { lastSend = now; send({ type: 'digit', digit: null }); }
+        }
       }
       requestAnimationFrame(loop);
     }; loop();
@@ -160,15 +256,23 @@ async function startCamera() {
 
 // ================= ADMIN =================
 function initAdmin() {
-  show('admin'); let A = localStorage.adm; const H = () => ({ 'x-admin': A, 'Content-Type': 'application/json' });
+  show('admin'); let A = null, last = null, Q = ''; const open = new Set(); const H = () => ({ 'x-admin': A, 'Content-Type': 'application/json' });
   const go = async () => { $('#alogin').classList.add('hide'); $('#adash').classList.remove('hide');
     $('#cfgTxt').value = JSON.stringify(await api('/api/admin/config', { headers: H() }), null, 1); poll(); setInterval(poll, 1000); };
-  async function poll() { try { const s = await api('/api/admin/state', { headers: H() });
+  function draw() {
+    if (!last) return; const s = last, q = Q.trim().toLowerCase();
+    const hit = t => !q || [t.name, t.code, ...t.players.flatMap(p => [p.name, p.roll, p.phone])].some(v => String(v || '').toLowerCase().includes(q));
+    const rows = s.teams.map((t, i) => ({ t, i })).filter(r => hit(r.t));
     $('#astats').textContent = `Teams ${s.total} · Online ${s.online} · Playing ${s.playing} · Finished ${s.finished}`;
-    $('#board').innerHTML = '<tr><th>Rank</th><th>Team</th><th>Members</th><th>Score</th><th>Status</th><th></th></tr>' + s.teams.map((t, i) => `<tr><td>${i + 1}</td><td><details><summary>${t.name} <span class="mut mono">${t.code}</span></summary><div class="mut mono" style="font-size:13px">${t.players.map(p => `${p.name}${p.role ? '→' + p.role : ''}${p.online ? '' : ' (off)'}`).join(', ')}<br>${t.question ? `${t.question.expression} = ${t.question.target} · L${t.question.difficulty} · ${t.question.solutions} solutions · seed ${t.question.seed}<br>X=${t.values.X ?? '?'} Y=${t.values.Y ?? '?'} Z=${t.values.Z ?? '?'} · ${t.remaining}s` : 'No question'}</div></details></td><td>${t.players.map(p => `${p.name}${p.role ? ' (' + p.role + ')' : ''} ${p.online ? '●' : '○'}`).join('<br>') || '<span class="mut">no players yet</span>'}</td><td class="mono">${t.score}</td><td>${t.phase}</td><td><button data-n="${t.id}">Next question</button></td></tr>`).join('');
-    document.querySelectorAll('[data-n]').forEach(b => b.onclick = () => api(`/api/admin/team/${b.dataset.n}/next`, { method: 'POST', headers: H() })); } catch { } }
-  $('#alog').onclick = async () => { try { A = localStorage.adm = (await api('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass: $('#apass').value }) })).token; go(); } catch { $('#apass').value = ''; $('#apass').placeholder = 'Wrong password'; } };
-  $('#mk').onclick = async () => { const names = $('#tnames').value.split('\n').map(x => x.trim()).filter(Boolean); const r = await api('/api/admin/teams', { method: 'POST', headers: H(), body: JSON.stringify({ names }) }); $('#made').textContent = r.map(t => `${t.name}: ${t.code}`).join('\n'); };
+    $('#board').innerHTML = '<tr><th>Rank</th><th>Team</th><th>Members (name · roll · phone)</th><th>Points</th><th>Status</th><th></th></tr>' + (rows.map(({ t, i }) => `<tr><td>${i + 1}</td><td><details data-id="${esc(t.id)}" ${open.has(t.id) ? 'open' : ''}><summary>${esc(t.name)} <span class="mut mono">${esc(t.code)}</span></summary><div class="mut mono" style="font-size:13px">${t.question ? `${esc(t.question.expression)} = ${t.question.target} · L${t.question.difficulty} · ${t.question.solutions} solutions · seed ${t.question.seed}<br>X=${t.values.X ?? '?'} Y=${t.values.Y ?? '?'} Z=${t.values.Z ?? '?'} · ${t.remaining}s` : 'No question'}</div></details></td><td>${t.players.map(p => `${p.leader ? '★ ' : ''}${esc(p.name)}${p.role ? ' (' + p.role + ')' : ''} · ${esc(p.roll)} · ${esc(p.phone)} ${p.online ? '●' : '○'}`).join('<br>') || '<span class="mut">no players yet</span>'}</td><td class="mono">${t.score}</td><td>${t.phase}${t.paused ? ' ⏸' : ''}</td><td style="white-space:nowrap"><button data-n="${esc(t.id)}">Next question</button> <button data-d="${esc(t.id)}" style="color:var(--bad)">Delete</button></td></tr>`).join('') || '<tr><td colspan="6" class="mut">No teams match</td></tr>');
+    document.querySelectorAll('[data-n]').forEach(b => b.onclick = () => api(`/api/admin/team/${b.dataset.n}/next`, { method: 'POST', headers: H() }).catch(() => { }));
+    document.querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { const t = s.teams.find(x => x.id === b.dataset.d); if (!t || !confirm(`Delete team "${t.name}" with all its players and records? This cannot be undone.`)) return;
+      try { await api(`/api/admin/team/${t.id}`, { method: 'DELETE', headers: H() }); open.delete(t.id); poll(); } catch (e) { alert(e.error || 'Delete failed'); } });
+    document.querySelectorAll('details[data-id]').forEach(d => d.ontoggle = () => d.open ? open.add(d.dataset.id) : open.delete(d.dataset.id));
+  }
+  async function poll() { try { last = await api('/api/admin/state', { headers: H() }); draw(); } catch { } }
+  $('#asearch').oninput = e => { Q = e.target.value; draw(); };
+  $('#alog').onclick = async () => { try { A = (await api('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass: $('#apass').value }) })).token; go(); } catch { $('#apass').value = ''; $('#apass').placeholder = 'Wrong password'; } };
   $('#saveCfg').onclick = () => api('/api/admin/config', { method: 'PUT', headers: H(), body: $('#cfgTxt').value });
   if (A) go();
 }
