@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:16
+    environment: { POSTGRES_USER: arena, POSTGRES_PASSWORD: "${DB_PASSWORD:-arena}", POSTGRES_DB: arena }
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U arena"], interval: 3s, retries: 20 }
+  api:
+    build: ./backend
+    ports: ["8000:8000"]
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      DATABASE_URL: postgresql://arena:${DB_PASSWORD:-arena}@db:5432/arena
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      ADMIN_PASS: ${ADMIN_PASS:-admin123}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+volumes: { pgdata: {} }

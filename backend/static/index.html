@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Calculator Arena</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#070b14;--panel:rgba(255,255,255,.045);--line:rgba(255,255,255,.1);--tx:#e6ecfa;--mut:#8592b0;--acc:#6ee7d8;--ok:#5be28a;--bad:#ff6b7a;--warn:#ffc15e}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(1100px 600px at 80% -10%,#142446 0,transparent 60%),var(--bg);color:var(--tx);font:16px/1.4 'Space Grotesk',system-ui,sans-serif}
+.mono{font-family:'JetBrains Mono',monospace}
+.wrap{max-width:1000px;margin:0 auto;padding:16px}
+.glass{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;backdrop-filter:blur(10px)}
+.row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1 1 0;min-width:0}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+h1{font-size:18px;margin:0}.mut{color:var(--mut)}
+input,button,textarea{font:inherit;color:inherit}
+input,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.3);margin:6px 0}
+button{padding:12px 18px;border-radius:10px;border:1px solid var(--line);background:var(--panel);cursor:pointer}
+button:hover{border-color:var(--acc)}button:focus-visible,input:focus-visible{outline:2px solid var(--acc)}
+button.go{background:var(--acc);color:#04120f;font-weight:700;border:0}button:disabled{opacity:.35;cursor:not-allowed}
+#eq{font:700 clamp(30px,7vw,64px)/1.1 'JetBrains Mono',monospace;text-align:center;margin:8px 0}
+#timer{font:700 clamp(48px,12vw,96px)/1 'JetBrains Mono',monospace;text-align:center}
+#timer.low{color:var(--bad)}
+.slot{text-align:center;transition:border-color .2s}.slot.ready{border-color:var(--ok)}.slot.me{box-shadow:0 0 0 1px var(--acc)}
+.slot b{display:block;font:700 44px 'JetBrains Mono',monospace}
+.letter{font:700 18px 'JetBrains Mono',monospace;color:var(--acc)}
+.banner{text-align:center;padding:10px;border-radius:10px;margin:10px 0}
+.banner.ok{background:rgba(91,226,138,.12);color:var(--ok)}.banner.bad{background:rgba(255,107,122,.12);color:var(--bad)}
+.cam{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3}
+.cam video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .1s}
+table{width:100%;border-collapse:collapse}td,th{padding:8px;text-align:left;border-bottom:1px solid var(--line)}
+.hide{display:none!important}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body><div class="wrap">
+
+<!-- LOGIN -->
+<section id="login" class="glass" style="max-width:420px;margin:12vh auto 0">
+  <h1>AI Calculator Arena</h1><p class="mut">Three players, three cameras, one equation.</p>
+  <label>Team code<input id="code" autocapitalize="characters" maxlength="8"></label>
+  <label>Your name<input id="pname" maxlength="20"></label>
+  <button class="go" id="joinBtn" style="width:100%;margin-top:8px">Join team</button>
+  <p id="err" class="mut"></p>
+</section>
+
+<!-- GAME -->
+<section id="game" class="hide">
+  <header><div><h1 id="tname"></h1><span class="mut" id="phaseTxt"></span></div><div class="mono" style="font-size:22px">Score <span id="score">0</span></div></header>
+  <div class="glass">
+    <div class="mut" id="meta" style="text-align:center"></div>
+    <div id="eq">…</div>
+    <div id="timer">–</div>
+  </div>
+  <div class="row" id="slots" style="margin:12px 0"></div>
+  <div id="banner"></div>
+  <div class="row">
+    <div class="glass">
+      <div id="assign" class="hide"><p><b>Choose your variable.</b> Picking a taken letter swaps with that teammate. Roles lock when the countdown starts.</p>
+        <div class="row"><button data-r="X">I am X</button><button data-r="Y">I am Y</button><button data-r="Z">I am Z</button></div>
+        <button class="go" id="startBtn" style="width:100%;margin-top:10px">Lock roles and start</button></div>
+      <div id="play" class="hide"><p id="readout" class="mono" style="font-size:20px"></p>
+        <button class="go" id="submitBtn" style="width:100%">Submit answer</button></div>
+      <div id="done" class="hide"></div>
+      <table id="log" class="mono" style="margin-top:10px"></table>
+    </div>
+    <div class="glass"><div class="cam"><video id="cam" playsinline muted></video></div>
+      <div class="row" style="margin-top:8px"><div>Detected <b class="mono" id="det" style="font-size:28px">–</b></div><div class="mut" id="stab" style="text-align:right">Camera off</div></div>
+      <div class="bar"><i id="bar"></i></div>
+      <p class="mut" style="font-size:13px">Fist 0 · fingers 1–5 · two hands add up (5+2 = 7). Video stays on this device; only the digit is sent.</p></div>
+  </div>
+</section>
+
+<!-- ADMIN -->
+<section id="admin" class="hide">
+  <header><h1>Live event</h1><span id="astats" class="mut mono"></span></header>
+  <div id="alogin" class="glass" style="max-width:360px"><input id="apass" type="password" placeholder="Admin password"><button class="go" id="alog">Sign in</button></div>
+  <div id="adash" class="hide">
+    <div class="glass"><table id="board"></table></div>
+    <div class="row" style="margin-top:12px">
+      <div class="glass"><b>Create teams</b> (one name per line)<textarea id="tnames" rows="4"></textarea><button id="mk">Create</button><pre id="made" class="mono"></pre></div>
+      <div class="glass"><b>Settings</b> (JSON)<textarea id="cfgTxt" rows="10" class="mono"></textarea><button id="saveCfg">Save settings</button></div>
+    </div>
+  </div>
+</section>
+</div>
+
+<script type="module">
+const $ = s => document.querySelector(s), api = (u, o = {}) => fetch(u, o).then(r => r.ok ? (r.status === 204 ? null : r.json()) : r.json().catch(() => ({ error: r.status })).then(e => Promise.reject(e)));
+let S = null, ws = null, tok = localStorage.tok, rem0 = 0, t0 = 0, sent = null, running = false;
+
+// ================= PLAYER =================
+if (location.hash === '#admin') initAdmin(); else { if (tok) connect(); else show('login'); }
+function show(id) { for (const s of ['login', 'game', 'admin']) $('#' + s).classList.toggle('hide', s !== id); }
+$('#joinBtn').onclick = async () => {
+  try { const r = await api('/api/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: $('#code').value, name: $('#pname').value }) }); tok = localStorage.tok = r.token; connect(); }
+  catch (e) { $('#err').textContent = e.error || 'Could not join'; }
+};
+function connect() {
+  show('game'); ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?token=' + tok);
+  ws.onmessage = e => { S = JSON.parse(e.data); rem0 = S.remaining; t0 = Date.now(); render(); };
+  ws.onclose = ev => { if (ev.code === 4401) { delete localStorage.tok; location.reload(); } else setTimeout(connect, 1500); };
+  startCamera();
+}
+const send = m => ws && ws.readyState === 1 && ws.send(JSON.stringify(m));
+document.querySelectorAll('[data-r]').forEach(b => b.onclick = () => send({ type: 'role', role: b.dataset.r }));
+$('#startBtn').onclick = () => send({ type: 'start' });
+$('#submitBtn').onclick = () => send({ type: 'submit' });
+
+const LV = ['', 'Easy', 'Medium', 'Hard', 'Extreme', 'Final boss'];
+function render() {
+  const s = S, q = s.question; $('#tname').textContent = s.team; $('#score').textContent = s.score;
+  $('#phaseTxt').textContent = { LOBBY: `Waiting for players (${s.players.length}/3)`, ASSIGN: 'Assign roles', COUNTDOWN: 'Get ready', PLAYING: 'Show your digit', RESULT: 'Result', FINISHED: 'Event finished' }[s.phase];
+  $('#eq').textContent = q ? `${q.expression} = ${q.target}` : (s.phase === 'FINISHED' ? 'All questions done' : '…');
+  $('#meta').textContent = q ? `${LV[q.difficulty]} · ${q.time_limit}s${q.constraint ? ' · ' + q.constraint : ''}` : '';
+  $('#slots').innerHTML = ['X', 'Y', 'Z'].map(L => { const p = s.players.find(p => p.role === L), v = s.values[L];
+    return `<div class="glass slot ${v !== undefined ? 'ready' : ''} ${p && p.id === s.you.id ? 'me' : ''}"><span class="letter">${L}</span><b>${v ?? '–'}</b><span>${p ? p.name : '—'}${p && !p.online ? ' (offline)' : ''}</span></div>`; }).join('');
+  $('#assign').classList.toggle('hide', s.phase !== 'ASSIGN'); $('#play').classList.toggle('hide', s.phase !== 'PLAYING');
+  const v = s.values, full = ['X', 'Y', 'Z'].every(k => v[k] !== undefined);
+  $('#readout').textContent = `X=${v.X ?? '?'}  Y=${v.Y ?? '?'}  Z=${v.Z ?? '?'}`; $('#submitBtn').disabled = !full;
+  const r = s.res; let b = '';
+  if (r && r.ok) b = `<div class="banner ok">Correct! +${r.pts} points (speed bonus ${r.bonus}). Next question starting…</div>`;
+  else if (r && r.timeUp) b = `<div class="banner bad">Time up. Next question starting…</div>`;
+  else if (r) b = `<div class="banner bad">Incorrect: X=${r.X} Y=${r.Y} Z=${r.Z} gives ${r.got}${r.constraintFailed ? ' (constraint not met)' : ''}, required ${r.required}. Attempt ${s.attempts}${s.max_attempts ? '/' + s.max_attempts : ''}.</div>`;
+  $('#banner').innerHTML = b;
+  $('#log').innerHTML = s.log.map(l => `<tr><td>Question ${l.n}</td><td style="text-align:right;color:var(--${l.pts >= 0 && l.ok ? 'ok' : 'bad'})">${l.pts >= 0 ? '+' : ''}${l.pts}</td></tr>`).join('') + (s.log.length ? `<tr><th>Total</th><th style="text-align:right">${s.score}</th></tr>` : '');
+  sent = null; tickTimer();
+}
+function tickTimer() {
+  if (!S) return; const live = ['COUNTDOWN', 'PLAYING', 'RESULT'].includes(S.phase);
+  const left = live ? Math.max(0, Math.ceil(rem0 - (Date.now() - t0) / 1000)) : null; // display only; the server owns the clock
+  $('#timer').textContent = left === null ? '–' : (S.phase === 'PLAYING' && left === 0 ? 'TIME UP' : left); $('#timer').classList.toggle('low', S.phase === 'PLAYING' && left <= 5);
+}
+setInterval(tickTimer, 200);
+
+// ================= COMPUTER VISION (on-device) =================
+const N_STABLE = 8, MIN_CONF = 0.85;
+async function startCamera() {
+  if (running) return; running = true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+    const video = $('#cam'); video.srcObject = stream; await video.play();
+    const { HandLandmarker, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm');
+    const fs = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    const lm = await HandLandmarker.createFromOptions(fs, { baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task' }, runningMode: 'VIDEO', numHands: 2 });
+    let cand = null, n = 0, lastT = -1;
+    const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const count = l => { let c = 0; for (const [t, p] of [[8, 6], [12, 10], [16, 14], [20, 18]]) if (d(l[t], l[0]) > d(l[p], l[0]) * 1.05) c++; if (d(l[4], l[17]) > d(l[3], l[17]) * 1.15) c++; return c; };
+    const loop = () => {
+      if (video.currentTime !== lastT) { lastT = video.currentTime;
+        const r = lm.detectForVideo(video, performance.now()); let digit = null, conf = 0;
+        if (r.landmarks.length) { digit = r.landmarks.reduce((s, l) => s + count(l), 0); conf = Math.min(...r.handednesses.map(h => h[0].score)); if (digit > 9) digit = null; }
+        if (digit !== null && conf >= MIN_CONF && digit === cand) n++; else { cand = digit !== null && conf >= MIN_CONF ? digit : null; n = cand === null ? 0 : 1; }
+        $('#det').textContent = digit ?? '–'; $('#bar').style.width = Math.min(100, n / N_STABLE * 100) + '%';
+        $('#stab').textContent = n >= N_STABLE ? `✓ stable (${Math.round(conf * 100)}%)` : (digit === null ? 'No hand' : 'Hold steady…');
+        if (n >= N_STABLE && S && S.phase === 'PLAYING' && S.you.role && sent !== cand) { sent = cand; send({ type: 'digit', digit: cand, conf }); }  // only digit + confidence leave the device
+      }
+      requestAnimationFrame(loop);
+    }; loop();
+  } catch (e) { $('#stab').textContent = 'Camera unavailable: allow access (HTTPS or localhost required)'; running = false; }
+}
+
+// ================= ADMIN =================
+function initAdmin() {
+  show('admin'); let A = localStorage.adm; const H = () => ({ 'x-admin': A, 'Content-Type': 'application/json' });
+  const go = async () => { $('#alogin').classList.add('hide'); $('#adash').classList.remove('hide');
+    $('#cfgTxt').value = JSON.stringify(await api('/api/admin/config', { headers: H() }), null, 1); poll(); setInterval(poll, 1000); };
+  async function poll() { try { const s = await api('/api/admin/state', { headers: H() });
+    $('#astats').textContent = `Teams ${s.total} · Online ${s.online} · Playing ${s.playing} · Finished ${s.finished}`;
+    $('#board').innerHTML = '<tr><th>Rank</th><th>Team</th><th>Members</th><th>Score</th><th>Status</th><th></th></tr>' + s.teams.map((t, i) => `<tr><td>${i + 1}</td><td><details><summary>${t.name} <span class="mut mono">${t.code}</span></summary><div class="mut mono" style="font-size:13px">${t.players.map(p => `${p.name}${p.role ? '→' + p.role : ''}${p.online ? '' : ' (off)'}`).join(', ')}<br>${t.question ? `${t.question.expression} = ${t.question.target} · L${t.question.difficulty} · ${t.question.solutions} solutions · seed ${t.question.seed}<br>X=${t.values.X ?? '?'} Y=${t.values.Y ?? '?'} Z=${t.values.Z ?? '?'} · ${t.remaining}s` : 'No question'}</div></details></td><td>${t.players.map(p => `${p.name}${p.role ? ' (' + p.role + ')' : ''} ${p.online ? '●' : '○'}`).join('<br>') || '<span class="mut">no players yet</span>'}</td><td class="mono">${t.score}</td><td>${t.phase}</td><td><button data-n="${t.id}">Next question</button></td></tr>`).join('');
+    document.querySelectorAll('[data-n]').forEach(b => b.onclick = () => api(`/api/admin/team/${b.dataset.n}/next`, { method: 'POST', headers: H() })); } catch { } }
+  $('#alog').onclick = async () => { try { A = localStorage.adm = (await api('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass: $('#apass').value }) })).token; go(); } catch { $('#apass').value = ''; $('#apass').placeholder = 'Wrong password'; } };
+  $('#mk').onclick = async () => { const names = $('#tnames').value.split('\n').map(x => x.trim()).filter(Boolean); const r = await api('/api/admin/teams', { method: 'POST', headers: H(), body: JSON.stringify({ names }) }); $('#made').textContent = r.map(t => `${t.name}: ${t.code}`).join('\n'); };
+  $('#saveCfg').onclick = () => api('/api/admin/config', { method: 'PUT', headers: H(), body: $('#cfgTxt').value });
+  if (A) go();
+}
+</script></body></html>
